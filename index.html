@@ -3,15 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Склейка картинок 16:9</title>
-    <!-- Подключаем Tailwind CSS для красивого интерфейса -->
+    <title>Склейка картинок в сетку 16:9</title>
+    <!-- Подключаем Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col items-center py-10 px-4">
 
     <div class="max-w-3xl w-full bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl">
-        <h1 class="text-2xl font-bold mb-2 text-center">Склейка картинок 16:9</h1>
-        <p class="text-slate-400 text-sm text-center mb-6">Загрузите от 1 до 10 изображений, чтобы объединить их в одну вертикальную ленту.</p>
+        <h1 class="text-2xl font-bold mb-2 text-center">Склейка картинок в сетку 3×3</h1>
+        <p class="text-slate-400 text-sm text-center mb-6">Загрузите до 10 картинок, чтобы собрать их в единое изображение формата 16:9.</p>
 
         <!-- Область загрузки -->
         <div class="mb-6">
@@ -26,12 +26,12 @@
 
         <!-- Список превью -->
         <div id="previewContainer" class="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-6 hidden">
-            <!-- Сюда динамически добавляются превью -->
+            <!-- Сюда добавляются превью -->
         </div>
 
         <!-- Кнопка склейки -->
         <button id="stitchBtn" onclick="stitchImages()" class="w-full bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 disabled:text-slate-600 text-white font-semibold py-3 rounded-xl transition shadow-lg hidden">
-            Склеить изображения
+            Собрать в сетку 3×3
         </button>
 
         <!-- Результат -->
@@ -40,7 +40,7 @@
             <div class="max-h-96 overflow-hidden rounded-lg border border-slate-700 mb-4 shadow-md">
                 <img id="resultImage" class="max-w-full object-contain" alt="Результат">
             </div>
-            <a id="downloadBtn" download="stitched-image.png" class="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-6 py-3 rounded-xl transition shadow-lg inline-flex items-center gap-2">
+            <a id="downloadBtn" download="grid-stitched-image.png" class="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-6 py-3 rounded-xl transition shadow-lg inline-flex items-center gap-2">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
                 Скачать готовую картинку
             </a>
@@ -50,8 +50,8 @@
     <script>
         let selectedFiles = [];
         const maxFiles = 10;
-        const targetWidth = 1920; // Базовая ширина высокого качества для 16:9
-        const targetHeight = 1080; // Базовая высота для одного кадра 16:9
+        const totalWidth = 1920;  // Итоговая ширина 16:9
+        const totalHeight = 1080; // Итоговая высота 16:9
 
         const fileInput = document.getElementById('fileInput');
         const previewContainer = document.getElementById('previewContainer');
@@ -62,7 +62,6 @@
 
         fileInput.addEventListener('change', (e) => {
             const files = Array.from(e.target.files);
-            
             for (let file of files) {
                 if (selectedFiles.length >= maxFiles) {
                     alert(`Можно загрузить не более ${maxFiles} картинок.`);
@@ -70,7 +69,7 @@
                 }
                 selectedFiles.push(file);
             }
-            fileInput.value = ''; // Сброс input для возможности повторного выбора тех же файлов
+            fileInput.value = '';
             updatePreview();
         });
 
@@ -118,25 +117,60 @@
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
 
-            canvas.width = targetWidth;
-            canvas.height = targetHeight * selectedFiles.length;
+            // Фиксируем холст в разрешении 1920x1080 (16:9)
+            canvas.width = totalWidth;
+            canvas.height = totalHeight;
+
+            // Заливаем фон черным (или можете изменить на белый/прозрачный)
+            ctx.fillStyle = '#0f172a';
+            ctx.fillRect(0, 0, totalWidth, totalHeight);
+
+            const cols = 3;
+            const rows = 3; // Сетка 3 на 3
+            const cellWidth = totalWidth / cols;
+            const cellHeight = totalHeight / rows;
 
             try {
-                for (let i = 0; i < selectedFiles.length; i++) {
+                for (let i = 0; i < Math.min(selectedFiles.length, 9); i++) {
                     await new Promise((resolve, reject) => {
                         const img = new Image();
                         const reader = new FileReader();
                         
-                        reader.onload = (e) => {
-                            img.src = e.target.result;
-                        };
-                        
+                        reader.onload = (e) => { img.src = e.target.result; };
                         img.onload = () => {
-                            // Рисуем с сохранением пропорций или масштабируем под 16:9 слот
-                            ctx.drawImage(img, 0, i * targetHeight, targetWidth, targetHeight);
+                            const col = i % cols;
+                            const row = Math.floor(i / cols);
+                            
+                            const x = col * cellWidth;
+                            const y = row * cellHeight;
+
+                            // Вписываем картинку в ячейку с сохранением пропорций (object-fit: cover)
+                            const imgAspect = img.width / img.height;
+                            const cellAspect = cellWidth / cellHeight;
+                            
+                            let renderWidth = cellWidth;
+                            let renderHeight = cellHeight;
+                            let offsetX = x;
+                            let offsetY = y;
+
+                            if (imgAspect > cellAspect) {
+                                renderWidth = cellHeight * imgAspect;
+                                offsetX = x - (renderWidth - cellWidth) / 2;
+                            } else {
+                                renderHeight = cellWidth / imgAspect;
+                                offsetY = y - (renderHeight - cellHeight) / 2;
+                            }
+
+                            ctx.save();
+                            ctx.beginPath();
+                            ctx.rect(x, y, cellWidth, cellHeight);
+                            ctx.clip();
+                            
+                            ctx.drawImage(img, offsetX, offsetY, renderWidth, renderHeight);
+                            ctx.restore();
+
                             resolve();
                         };
-                        
                         img.onerror = reject;
                         reader.readAsDataURL(selectedFiles[i]);
                     });
@@ -149,9 +183,9 @@
                 resultContainer.scrollIntoView({ behavior: 'smooth' });
             } catch (error) {
                 console.error(error);
-                alert('Произошла ошибка при склейке изображений.');
+                alert('Произошла ошибка при создании сетки.');
             } finally {
-                stitchBtn.textContent = 'Склеить изображения';
+                stitchBtn.textContent = 'Собрать в сетку 3×3';
                 stitchBtn.disabled = false;
             }
         }
