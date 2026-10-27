@@ -40,25 +40,29 @@
             <div class="max-h-96 overflow-hidden rounded-lg border border-slate-700 mb-4 shadow-md">
                 <img id="resultImage" class="max-w-full object-contain" alt="Результат">
             </div>
-            <a id="downloadBtn" download="grid-stitched-image.png" class="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-6 py-3 rounded-xl transition shadow-lg inline-flex items-center gap-2">
+            <!-- Кнопка скачивания с обработчиком клика для мобильных -->
+            <button id="downloadBtn" onclick="downloadResult()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-6 py-3 rounded-xl transition shadow-lg inline-flex items-center gap-2 cursor-pointer">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
                 Скачать готовую картинку
-            </a>
+            </button>
+            <p id="mobileHint" class="text-xs text-slate-500 mt-2 text-center hidden">Если файл не скачался, зажмите картинку выше и выберите «Сохранить фото».</p>
         </div>
     </div>
 
     <script>
         let selectedFiles = [];
         const maxFiles = 10;
-        const totalWidth = 1920;  // Итоговая ширина 16:9
-        const totalHeight = 1080; // Итоговая высота 16:9
+        const totalWidth = 1920;  
+        const totalHeight = 1080; 
+
+        let generatedBlobUrl = null;
 
         const fileInput = document.getElementById('fileInput');
         const previewContainer = document.getElementById('previewContainer');
         const stitchBtn = document.getElementById('stitchBtn');
         const resultContainer = document.getElementById('resultContainer');
         const resultImage = document.getElementById('resultImage');
-        const downloadBtn = document.getElementById('downloadBtn');
+        const mobileHint = document.getElementById('mobileHint');
 
         fileInput.addEventListener('change', (e) => {
             const files = Array.from(e.target.files);
@@ -117,16 +121,14 @@
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
 
-            // Фиксируем холст в разрешении 1920x1080 (16:9)
             canvas.width = totalWidth;
             canvas.height = totalHeight;
 
-            // Заливаем фон черным (или можете изменить на белый/прозрачный)
             ctx.fillStyle = '#0f172a';
             ctx.fillRect(0, 0, totalWidth, totalHeight);
 
             const cols = 3;
-            const rows = 3; // Сетка 3 на 3
+            const rows = 3; 
             const cellWidth = totalWidth / cols;
             const cellHeight = totalHeight / rows;
 
@@ -144,7 +146,6 @@
                             const x = col * cellWidth;
                             const y = row * cellHeight;
 
-                            // Вписываем картинку в ячейку с сохранением пропорций (object-fit: cover)
                             const imgAspect = img.width / img.height;
                             const cellAspect = cellWidth / cellHeight;
                             
@@ -176,11 +177,17 @@
                     });
                 }
 
-                const dataUrl = canvas.toDataURL('image/png');
-                resultImage.src = dataUrl;
-                downloadBtn.href = dataUrl;
-                resultContainer.classList.remove('hidden');
-                resultContainer.scrollIntoView({ behavior: 'smooth' });
+                // Конвертируем в Blob для корректного скачивания на мобильных
+                canvas.toBlob((blob) => {
+                    if (generatedBlobUrl) URL.revokeObjectURL(generatedBlobUrl);
+                    generatedBlobUrl = URL.createObjectURL(blob);
+                    
+                    resultImage.src = generatedBlobUrl;
+                    resultContainer.classList.remove('hidden');
+                    mobileHint.classList.remove('hidden');
+                    resultContainer.scrollIntoView({ behavior: 'smooth' });
+                }, 'image/png');
+
             } catch (error) {
                 console.error(error);
                 alert('Произошла ошибка при создании сетки.');
@@ -188,6 +195,16 @@
                 stitchBtn.textContent = 'Собрать в сетку 3×3';
                 stitchBtn.disabled = false;
             }
+        }
+
+        function downloadResult() {
+            if (!generatedBlobUrl) return;
+            const a = document.createElement('a');
+            a.href = generatedBlobUrl;
+            a.download = 'grid-stitched-image.png';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
         }
     </script>
 </body>
